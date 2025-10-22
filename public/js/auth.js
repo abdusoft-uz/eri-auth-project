@@ -20,6 +20,16 @@ class AuthManager {
             this.loadCertificates();
         });
 
+        // Sahifani qayta yuklash tugmasi
+        document.getElementById('refreshPageBtn').addEventListener('click', () => {
+            window.location.reload();
+        });
+
+        // CAPIWS holatini tekshirish tugmasi
+        document.getElementById('checkCAPIWSBtn').addEventListener('click', () => {
+            this.checkCAPIWSStatus();
+        });
+
         // Kirish tugmasi
         document.getElementById('loginBtn').addEventListener('click', () => {
             this.loginWithERI();
@@ -41,28 +51,66 @@ class AuthManager {
         }
     }
 
-    // Sertifikatlarni yuklash
+    // Sertifikatlarni yuklash (E-IMZO namuna kodiga asosan)
     async loadCertificates() {
         try {
+            // capiwsManager mavjudligini tekshirish
+            if (typeof capiwsManager === 'undefined') {
+                throw new Error('CAPIWS Manager mavjud emas. Sahifani qayta yuklang.');
+            }
+
+            // CAPIWS mavjudligini tekshirish
+            if (!capiwsManager.isPluginLoaded) {
+                throw new Error('CAPIWS mavjud emas. E-IMZO dasturini ishga tushiring va sahifani qayta yuklang.');
+            }
+
             capiwsManager.showLoading(true);
             capiwsManager.showInfo('Sertifikatlar yuklanmoqda...');
 
-            // Disklarni ro'yxatga olish
-            const disks = await capiwsManager.listDisks();
-            console.log('Topilgan disklar:', disks);
+            // E-IMZO namuna kodiga asosan barcha kalitlarni olish
+            let allCertificates = [];
+            
+            try {
+                // Avval E-IMZO versiyasini tekshirish
+                const version = await capiwsManager.checkVersion();
+                console.log('E-IMZO versiyasi:', version);
+                capiwsManager.showDebug(`E-IMZO versiyasi: ${JSON.stringify(version)}`);
 
-            const allCertificates = [];
-
-            // Har bir disk uchun sertifikatlarni olish
-            for (const disk of disks) {
+                // ID-karta ulanganligini tekshirish
+                let isIdCardPlugged = false;
                 try {
-                    const certificates = await capiwsManager.listCertificates(disk);
-                    certificates.forEach(cert => {
-                        cert.disk = disk;
-                        allCertificates.push(cert);
-                    });
+                    isIdCardPlugged = await capiwsManager.idCardIsPluggedIn();
+                    console.log('ID-karta ulangan:', isIdCardPlugged);
+                    capiwsManager.showDebug(`ID-karta ulangan: ${isIdCardPlugged}`);
                 } catch (error) {
-                    console.warn(`Disk ${disk} uchun sertifikatlar olinmadi:`, error);
+                    console.warn('ID-karta holati olinmadi:', error);
+                }
+
+                // E-IMZO holatini ko'rsatish
+                capiwsManager.showEIMZOStatus(version, isIdCardPlugged);
+
+                // Barcha kalitlarni olish
+                const allKeys = await capiwsManager.listAllKeys();
+                console.log('Barcha kalitlar topildi:', allKeys);
+                allCertificates = allKeys;
+            } catch (error) {
+                console.warn('Barcha kalitlar olinmadi, disklar orqali harakat qilamiz:', error);
+                
+                // Agar barcha kalitlar olinmasa, disklar orqali harakat qilamiz
+                const disks = await capiwsManager.listDisks();
+                console.log('Topilgan disklar:', disks);
+
+                // Har bir disk uchun sertifikatlarni olish
+                for (const disk of disks) {
+                    try {
+                        const certificates = await capiwsManager.listCertificates(disk);
+                        certificates.forEach(cert => {
+                            cert.disk = disk;
+                            allCertificates.push(cert);
+                        });
+                    } catch (error) {
+                        console.warn(`Disk ${disk} uchun sertifikatlar olinmadi:`, error);
+                    }
                 }
             }
 
@@ -119,6 +167,12 @@ class AuthManager {
 
     // ERI bilan kirish
     async loginWithERI() {
+        // capiwsManager mavjudligini tekshirish
+        if (typeof capiwsManager === 'undefined') {
+            alert('CAPIWS Manager mavjud emas. Sahifani qayta yuklang.');
+            return;
+        }
+
         const selectedCert = capiwsManager.getSelectedCertificate();
         if (!selectedCert) {
             capiwsManager.showError('Sertifikat tanlanmagan');
@@ -144,20 +198,34 @@ class AuthManager {
             const challengeData = await this.fetchChallenge();
             console.log('Challenge olingan:', challengeData.challenge);
 
-            // 3-bosqich: Challenge ni imzolash
-            const signatureData = await capiwsManager.getSignature(
-                challengeData.challenge,
-                keyId
-            );
+            // 3-bosqich: Challenge ni imzolash (E-IMZO hujjatlariga asosan)
+            let signatureData;
+            try {
+                // Avval PKCS7 imzo yaratishga harakat qilamiz
+                signatureData = await capiwsManager.createPKCS7(
+                    keyId,
+                    challengeData.challenge
+                );
+                console.log('PKCS7 imzo yaratildi');
+            } catch (error) {
+                console.warn('PKCS7 imzo yaratilmadi, oddiy imzo yaratishga harakat qilamiz:', error);
+                // Agar PKCS7 ishlamasa, oddiy imzo yaratishga harakat qilamiz
+                signatureData = await capiwsManager.getSignature(
+                    challengeData.challenge,
+                    keyId
+                );
+                console.log('Oddiy imzo olingan');
+            }
 
-            const { signature_hex } = signatureData;
-            console.log('Imzo olingan');
+            const { signature_hex, pkcs7 } = signatureData;
+            console.log('Imzo olingan:', { signature_hex: signature_hex ? 'mavjud' : 'yo\'q', pkcs7: pkcs7 ? 'mavjud' : 'yo\'q' });
 
             // 4-bosqich: Imzo tekshirish
             const authResult = await this.verifySignature(
                 challengeData.challenge,
                 signature_hex,
-                certificate_64
+                certificate_64,
+                pkcs7
             );
 
             if (authResult.success) {
@@ -203,17 +271,24 @@ class AuthManager {
     }
 
     // Imzo tekshirish
-    async verifySignature(challengeData64, signatureHex, certificate64) {
+    async verifySignature(challengeData64, signatureHex, certificate64, pkcs7 = null) {
+        const requestBody = {
+            challenge_data_64: challengeData64,
+            signature_hex: signatureHex,
+            certificate_64: certificate64
+        };
+
+        // Agar PKCS7 mavjud bo'lsa, qo'shamiz
+        if (pkcs7) {
+            requestBody.pkcs7 = pkcs7;
+        }
+
         const response = await fetch('/api/auth/verify', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                challenge_data_64: challengeData64,
-                signature_hex: signatureHex,
-                certificate_64: certificate64
-            })
+            body: JSON.stringify(requestBody)
         });
 
         if (!response.ok) {
@@ -246,7 +321,9 @@ class AuthManager {
     // Chiqish
     logout() {
         // Kalitni tozalash
-        capiwsManager.cleanup();
+        if (typeof capiwsManager !== 'undefined') {
+            capiwsManager.cleanup();
+        }
 
         // Ma'lumotlarni tozalash
         this.isAuthenticated = false;
@@ -262,7 +339,35 @@ class AuthManager {
         document.getElementById('certificateList').innerHTML = '';
         document.getElementById('loginBtn').disabled = true;
 
-        capiwsManager.showInfo('Muvaffaqiyatli chiqildi');
+        if (typeof capiwsManager !== 'undefined') {
+            capiwsManager.showInfo('Muvaffaqiyatli chiqildi');
+        }
+    }
+
+    // CAPIWS holatini tekshirish
+    checkCAPIWSStatus() {
+        console.log('CAPIWS holatini tekshirish...');
+        
+        const status = {
+            capiwsManager: typeof capiwsManager !== 'undefined',
+            capiwsPlugin: typeof CAPIWS !== 'undefined',
+            isPluginLoaded: capiwsManager ? capiwsManager.isPluginLoaded : false
+        };
+        
+        console.log('CAPIWS holati:', status);
+        
+        let message = 'CAPIWS holati:\n';
+        message += `- CAPIWS Manager: ${status.capiwsManager ? 'mavjud' : 'mavjud emas'}\n`;
+        message += `- CAPIWS Plugin: ${status.capiwsPlugin ? 'mavjud' : 'mavjud emas'}\n`;
+        message += `- Plugin yuklangan: ${status.isPluginLoaded ? 'ha' : 'yo\'q'}\n`;
+        
+        if (status.capiwsPlugin) {
+            message += '\n✅ CAPIWS mavjud va ishlamoqda!';
+        } else {
+            message += '\n❌ CAPIWS mavjud emas. E-IMZO dasturini ishga tushiring.';
+        }
+        
+        alert(message);
     }
 }
 

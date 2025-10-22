@@ -9,15 +9,48 @@ class CAPIWSManager {
 
     // CAPIWS plaginini ishga tushirish
     init() {
+        this.showDebug('CAPIWS Manager ishga tushirilmoqda...');
+        
+        // CAPIWS mavjudligini tekshirish
+        this.checkCAPIWS();
+    }
+
+    // CAPIWS mavjudligini tekshirish (namuna kodga asosan)
+    checkCAPIWS() {
+        this.showDebug('CAPIWS mavjudligini tekshirish...');
+        
         if (typeof CAPIWS !== 'undefined') {
             this.isPluginLoaded = true;
-            console.log('✅ E-IMZO CAPIWS plagini yuklandi');
+            this.showDebug('✅ CAPIWS mavjud');
             this.setupErrorHandling();
         } else {
-            console.error('❌ E-IMZO CAPIWS plagini topilmadi');
-            this.showError('E-IMZO CAPIWS plagini yuklang va sahifani qayta yuklang');
+            this.showDebug('❌ CAPIWS mavjud emas, kutish...');
+            // CAPIWS yuklanishini kutish
+            this.waitForCAPIWS();
         }
     }
+
+    // CAPIWS yuklanishini kutish (namuna kodga asosan)
+    waitForCAPIWS() {
+        let attempts = 0;
+        const maxAttempts = 100; // 10 soniya kutish
+        
+        const checkInterval = setInterval(() => {
+            attempts++;
+            
+            if (typeof CAPIWS !== 'undefined') {
+                clearInterval(checkInterval);
+                this.isPluginLoaded = true;
+                this.showDebug('✅ CAPIWS yuklandi');
+                this.setupErrorHandling();
+            } else if (attempts >= maxAttempts) {
+                clearInterval(checkInterval);
+                this.showDebug('❌ CAPIWS yuklanmadi');
+                this.showError('CAPIWS mavjud emas. E-IMZO dasturini ishga tushiring va sahifani qayta yuklang.');
+            }
+        }, 100);
+    }
+
 
     // Xatolik boshqarish
     setupErrorHandling() {
@@ -34,10 +67,12 @@ class CAPIWSManager {
         statusDiv.textContent = message;
         statusDiv.style.display = 'block';
         
-        // 5 soniyadan keyin yashirish
+        console.error('CAPIWS Xatolik:', message);
+        
+        // 10 soniyadan keyin yashirish
         setTimeout(() => {
             statusDiv.style.display = 'none';
-        }, 5000);
+        }, 10000);
     }
 
     // Muvaffaqiyat xabari
@@ -60,6 +95,33 @@ class CAPIWSManager {
         statusDiv.style.display = 'block';
     }
 
+    // Debug ma'lumotlarini ko'rsatish
+    showDebug(message) {
+        const debugDiv = document.getElementById('debugInfo');
+        const debugText = document.getElementById('debugText');
+        
+        if (debugDiv && debugText) {
+            debugText.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            debugDiv.style.display = 'block';
+        }
+        
+        console.log(message);
+    }
+
+    // E-IMZO holatini ko'rsatish
+    showEIMZOStatus(version, idCardStatus) {
+        const versionInfo = document.getElementById('versionInfo');
+        const idcardInfo = document.getElementById('idcardInfo');
+        
+        if (versionInfo) {
+            versionInfo.textContent = `E-IMZO versiyasi: ${version || 'Noma\'lum'}`;
+        }
+        
+        if (idcardInfo) {
+            idcardInfo.textContent = `ID-karta: ${idCardStatus ? 'ulangan' : 'ulangan emas'}`;
+        }
+    }
+
     // Loading ko'rsatish
     showLoading(show = true) {
         const loadingDiv = document.getElementById('loading');
@@ -70,19 +132,35 @@ class CAPIWSManager {
     async listDisks() {
         return new Promise((resolve, reject) => {
             if (!this.isPluginLoaded) {
-                reject(new Error('CAPIWS plagini yuklanmagan'));
+                this.showDebug('CAPIWS yuklanmagan, kutish...');
+                // CAPIWS yuklanishini kutish
+                const checkInterval = setInterval(() => {
+                    if (this.isPluginLoaded) {
+                        clearInterval(checkInterval);
+                        this.listDisks().then(resolve).catch(reject);
+                    }
+                }, 100);
+                
+                setTimeout(() => {
+                    clearInterval(checkInterval);
+                    reject(new Error('CAPIWS yuklanmadi'));
+                }, 5000);
                 return;
             }
 
+            this.showDebug('Disklarni ro\'yxatga olish...');
+            
             CAPIWS.callFunction({
                 plugin: "pfx",
                 name: "list_disks"
             }, (event, data) => {
                 if (event === 'success') {
                     console.log('Disklar topildi:', data);
+                    this.showDebug(`Disklar topildi: ${JSON.stringify(data)}`);
                     resolve(data.disks || []);
                 } else {
                     console.error('Disklar ro\'yxatga olinmadi:', data);
+                    this.showDebug('Disklar ro\'yxatga olinmadi: ' + JSON.stringify(data));
                     reject(new Error(data.message || 'Disklar ro\'yxatga olinmadi'));
                 }
             });
@@ -92,6 +170,8 @@ class CAPIWSManager {
     // Sertifikatlarni ro'yxatga olish
     async listCertificates(disk) {
         return new Promise((resolve, reject) => {
+            this.showDebug(`Sertifikatlarni ro'yxatga olish: ${disk}`);
+            
             CAPIWS.callFunction({
                 plugin: "pfx",
                 name: "list_certificates",
@@ -99,10 +179,78 @@ class CAPIWSManager {
             }, (event, data) => {
                 if (event === 'success') {
                     console.log('Sertifikatlar topildi:', data);
+                    this.showDebug(`Sertifikatlar topildi: ${JSON.stringify(data)}`);
                     resolve(data.certificates || []);
                 } else {
                     console.error('Sertifikatlar ro\'yxatga olinmadi:', data);
+                    this.showDebug('Sertifikatlar ro\'yxatga olinmadi: ' + JSON.stringify(data));
                     reject(new Error(data.message || 'Sertifikatlar ro\'yxatga olinmadi'));
+                }
+            });
+        });
+    }
+
+    // Barcha kalitlarni ro'yxatga olish (E-IMZO namuna kodiga asosan)
+    async listAllKeys() {
+        return new Promise((resolve, reject) => {
+            this.showDebug('Barcha kalitlarni ro\'yxatga olish...');
+            
+            CAPIWS.callFunction({
+                plugin: "pfx",
+                name: "list_all_keys"
+            }, (event, data) => {
+                if (event === 'success') {
+                    console.log('Barcha kalitlar topildi:', data);
+                    this.showDebug(`Barcha kalitlar topildi: ${JSON.stringify(data)}`);
+                    resolve(data.keys || []);
+                } else {
+                    console.error('Kalitlar ro\'yxatga olinmadi:', data);
+                    this.showDebug('Kalitlar ro\'yxatga olinmadi: ' + JSON.stringify(data));
+                    reject(new Error(data.message || 'Kalitlar ro\'yxatga olinmadi'));
+                }
+            });
+        });
+    }
+
+    // E-IMZO versiyasini tekshirish (namuna kodiga asosan)
+    async checkVersion() {
+        return new Promise((resolve, reject) => {
+            this.showDebug('E-IMZO versiyasini tekshirish...');
+            
+            CAPIWS.callFunction({
+                plugin: "system",
+                name: "get_version"
+            }, (event, data) => {
+                if (event === 'success') {
+                    console.log('E-IMZO versiyasi:', data);
+                    this.showDebug(`E-IMZO versiyasi: ${JSON.stringify(data)}`);
+                    resolve(data);
+                } else {
+                    console.error('Versiya olinmadi:', data);
+                    this.showDebug('Versiya olinmadi: ' + JSON.stringify(data));
+                    reject(new Error(data.message || 'Versiya olinmadi'));
+                }
+            });
+        });
+    }
+
+    // ID-karta ulanganligini tekshirish (namuna kodiga asosan)
+    async idCardIsPluggedIn() {
+        return new Promise((resolve, reject) => {
+            this.showDebug('ID-karta ulanganligini tekshirish...');
+            
+            CAPIWS.callFunction({
+                plugin: "idcard",
+                name: "is_plugged_in"
+            }, (event, data) => {
+                if (event === 'success') {
+                    console.log('ID-karta holati:', data);
+                    this.showDebug(`ID-karta holati: ${JSON.stringify(data)}`);
+                    resolve(data.isPlugged || false);
+                } else {
+                    console.error('ID-karta holati olinmadi:', data);
+                    this.showDebug('ID-karta holati olinmadi: ' + JSON.stringify(data));
+                    reject(new Error(data.message || 'ID-karta holati olinmadi'));
                 }
             });
         });
@@ -128,9 +276,11 @@ class CAPIWSManager {
         });
     }
 
-    // Imzo olish
+    // Imzo olish (E-IMZO hujjatlariga asosan)
     async getSignature(data, keyId) {
         return new Promise((resolve, reject) => {
+            this.showDebug(`Imzo olish: ${data.substring(0, 50)}...`);
+            
             CAPIWS.callFunction({
                 plugin: "cryptoauth",
                 name: "get_signature",
@@ -138,10 +288,35 @@ class CAPIWSManager {
             }, (event, data) => {
                 if (event === 'success') {
                     console.log('Imzo olingan:', data);
+                    this.showDebug('Imzo muvaffaqiyatli olingan');
                     resolve(data);
                 } else {
                     console.error('Imzo olinmadi:', data);
+                    this.showDebug('Imzo olinmadi: ' + JSON.stringify(data));
                     reject(new Error(data.message || 'Imzo olinmadi'));
+                }
+            });
+        });
+    }
+
+    // PKCS7 imzo yaratish (E-IMZO hujjatlariga asosan)
+    async createPKCS7(keyId, challenge) {
+        return new Promise((resolve, reject) => {
+            this.showDebug(`PKCS7 imzo yaratish: ${challenge.substring(0, 50)}...`);
+            
+            CAPIWS.callFunction({
+                plugin: "cryptoauth",
+                name: "create_pkcs7",
+                arguments: [keyId, challenge]
+            }, (event, data) => {
+                if (event === 'success') {
+                    console.log('PKCS7 imzo yaratildi:', data);
+                    this.showDebug('PKCS7 imzo muvaffaqiyatli yaratildi');
+                    resolve(data);
+                } else {
+                    console.error('PKCS7 imzo yaratilmadi:', data);
+                    this.showDebug('PKCS7 imzo yaratilmadi: ' + JSON.stringify(data));
+                    reject(new Error(data.message || 'PKCS7 imzo yaratilmadi'));
                 }
             });
         });

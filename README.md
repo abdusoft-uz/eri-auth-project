@@ -5,17 +5,40 @@ O'zbekiston E-IMZO CAPIWS plaginidan foydalangan holda, foydalanuvchini ERI kali
 ## 🚀 Xususiyatlar
 
 - **E-IMZO CAPIWS integratsiyasi** - O'zbekiston ERI kalitlari bilan ishlash
+- **EIMZOClient kutubxonasi** - Namuna kodga asosan yaratilgan maxsus kutubxona
 - **Challenge-Response sxemasi** - Xavfsiz avtorizatsiya
+- **PKCS7 imzo qo'llab-quvvatlash** - E-IMZO hujjatlariga asosan
+- **Muddati tugagan sertifikatlar** - Avtomatik aniqlash va belgilash
 - **PostgreSQL ma'lumotlar bazasi** - Foydalanuvchi ma'lumotlarini saqlash
 - **JWT tokenlar** - Xavfsiz sessiya boshqaruvi
 - **Modern UI** - Responsive va foydalanuvchi-do'st interfeys
+- **Debug rejimi** - Batafsil loglar va xatolik tahlili
 
 ## 📋 Talablar
 
 - Node.js 16+ 
 - PostgreSQL 12+
-- E-IMZO CAPIWS plagin (brauzer uchun)
+- **E-IMZO dasturi** (CAPIWS uchun)
 - Windows operatsion tizimi (E-IMZO uchun)
+
+## 🔧 CAPIWS ni qayerdan olish
+
+### 1. **Native CAPIWS Kutubxonasi** ✅
+Bizning loyihada **CAPIWS native kutubxonasi** mavjud:
+- **`public/js/capiws-native.js`** - Namuna kodga asosan yaratilgan to'liq CAPIWS implementatsiyasi
+- **WebSocket orqali E-IMZO bilan aloqa** - `ws://127.0.0.1:64646` yoki `wss://127.0.0.1:64443`
+- **Base64 kutubxonasi** - Kriptografik operatsiyalar uchun
+- **Avtomatik yuklash** - Sahifa yuklanganda avtomatik ravishda ishga tushadi
+
+### 2. **E-IMZO dasturini o'rnatish**
+1. E-IMZO dasturini yuklab oling: https://e-imzo.uz/main/downloads/
+2. Dasturni o'rnating va ishga tushiring
+3. CAPIWS avtomatik ravishda mavjud bo'ladi: https://127.0.0.1:64443/apidoc.html
+
+### 3. **CAPIWS holatini tekshirish**
+- Sahifada "CAPIWS holatini tekshirish" tugmasini bosing
+- Brauzer konsolini oching (F12) va debug ma'lumotlarini ko'ring
+- E-IMZO dasturi ishlamoqda ekanligini tekshiring: https://127.0.0.1:64443/apidoc.html
 
 ## 🛠️ O'rnatish
 
@@ -129,6 +152,25 @@ Imzo tekshirish va avtorizatsiya
 - Barcha paketlar o'rnatilganligini tekshiring
 - Konfiguratsiya fayli to'g'ri sozlanganligini tekshiring
 
+## 📚 E-IMZO Hujjatlari
+
+Loyiha [E-IMZO integratsiya hujjatlariga](https://github.com/qo0p/e-imzo-doc) va namuna kodlarga asoslanib yaratilgan.
+
+### E-IMZO Funksiyalari:
+- `list_all_keys()` - Barcha kalitlarni ro'yxatga olish
+- `load_key()` - Kalitni yuklash
+- `create_pkcs7()` - PKCS7 imzo yaratish
+- `get_signature()` - Oddiy imzo olish
+- `get_version()` - E-IMZO versiyasini olish
+- `is_plugged_in()` - ID-karta ulanganligini tekshirish
+
+### Namuna Kod Tahlili:
+- ✅ E-IMZO versiya tekshiruvi
+- ✅ ID-karta holati tekshiruvi
+- ✅ Barcha kalitlarni ro'yxatga olish
+- ✅ PKCS7 imzo yaratish
+- ✅ Xatolik boshqaruvi
+
 ## 📞 Yordam
 
 Agar muammolar bo'lsa, quyidagi ma'lumotlarni yuboring:
@@ -136,6 +178,7 @@ Agar muammolar bo'lsa, quyidagi ma'lumotlarni yuboring:
 - Brauzer konsoli loglari
 - Server loglari
 - Operatsion tizim ma'lumotlari
+- Debug ma'lumotlari (sahifada ko'rsatiladi)
 
 ## 📄 Litsenziya
 

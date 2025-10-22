@@ -447,10 +447,22 @@
         <h1>ERI Autentifikatsiya</h1>
         <p class="subtitle">E-IMZO CAPIWS orqali xavfsiz kirish</p>
         
+        <div class="info-text">
+            <strong>CAPIWS ni qayerdan olish:</strong><br>
+            1. E-IMZO dasturini yuklab oling: <a href="https://e-imzo.uz/main/downloads/" target="_blank">https://e-imzo.uz/main/downloads/</a><br>
+            2. Dasturni o'rnating va ishga tushiring<br>
+            3. CAPIWS avtomatik ravishda mavjud bo'ladi: <a href="https://127.0.0.1:64443/apidoc.html" target="_blank">https://127.0.0.1:64443/apidoc.html</a><br>
+            <strong>Muammo bo'lsa:</strong> "CAPIWS holatini tekshirish" tugmasini bosing yoki brauzer konsolini oching (F12).
+        </div>
 
         <!-- Status ko'rsatish -->
         <div id="status" class="status" style="display: none;"></div>
         
+        <!-- Debug ma'lumotlari -->
+        <div id="debugInfo" style="display: none;">
+            <strong>Debug ma'lumotlari:</strong><br>
+            <span id="debugText"></span>
+        </div>
 
         <!-- Loading animatsiya -->
         <div id="loading" class="loading" style="display: none;">
@@ -470,6 +482,8 @@
             
             <div style="margin-bottom: 20px;">
                 <button id="loadCertificatesBtn" class="btn btn-success">📋 Sertifikatlarni yuklash</button>
+                <button id="refreshPageBtn" class="btn btn-secondary">🔄 Sahifani qayta yuklash</button>
+                <button id="checkCAPIWSBtn" class="btn btn-secondary">🔍 CAPIWS holatini tekshirish</button>
             </div>
             
             <div id="certificateList" class="certificate-list"></div>
@@ -528,3 +542,4 @@
     <script src="js/auth-eimzo.js"></script>
 </body>
 </html>
+
